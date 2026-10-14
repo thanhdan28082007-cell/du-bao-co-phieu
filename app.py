@@ -37,21 +37,27 @@ if run_button:
     with st.spinner(f"Đang tải dữ liệu và huấn luyện mô hình LSTM cho mã {ticker_input}..."):
         df = yf.download(ticker_input, start=str(start_date), end=str(end_date))
         
-        if df.empty or len(df) < 100:
+        # Xử lý chuẩn hóa cột dữ liệu yfinance
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+            
+        if df.empty or 'Close' not in df.columns or len(df) < 100:
             st.error("Không tìm thấy dữ liệu hoặc dữ liệu quá ít. Vui lòng thử lại với mã khác (VD: VNM.VN, ACB.VN).")
         else:
             col1, col2, col3 = st.columns(3)
             col1.metric("Số phiên có dữ liệu", f"{len(df):,}")
-            latest_close = float(df['Close'].iloc[-1])
+            
+            close_series = df['Close'].dropna()
+            latest_close = float(close_series.iloc[-1])
             col2.metric("Giá đóng cửa gần nhất", f"{latest_close:,.2f}")
-            col3.metric("Ngày giao dịch gần nhất", df.index[-1].strftime('%d/%m/%Y'))
+            col3.metric("Ngày giao dịch gần nhất", close_series.index[-1].strftime('%d/%m/%Y'))
 
             st.markdown(f"### Biểu đồ giá lịch sử — {ticker_input}")
             fig_hist, ax_hist = plt.subplots(figsize=(10, 4))
-            ax_hist.plot(df.index, df['Close'], color='blue', linewidth=1.2)
+            ax_hist.plot(close_series.index, close_series.values, color='blue', linewidth=1.2)
             st.pyplot(fig_hist)
 
-            data = df[['Close']].values
+            data = close_series.values.reshape(-1, 1)
             train_size = int(0.8 * len(data))
             train_data = data[:train_size]
             test_data = data[train_size:]
